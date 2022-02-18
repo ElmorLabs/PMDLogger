@@ -49,12 +49,13 @@ namespace PMDLogger {
         string FilePath;
         bool CsvMode;
         bool Hwinfo;
-         evc2_dev;
+        int evc2_device_id;
 
 
         private CultureInfo culture_info;
 
-        public DataLogger() {
+        public DataLogger(int device_id) {
+            evc2_device_id = device_id;
             IsLogging = false;
             IdCounter = 0;
             LoggingItemList = new List<LoggingItem>();
@@ -63,15 +64,6 @@ namespace PMDLogger {
 
         public void SetHwinfo(bool hwinfo) {
             Hwinfo = hwinfo;
-        }
-
-        public bool GetOled() {
-            return OledEnabled;
-        }
-
-        public void SetOled(EVC2 evc2_dev_ref, bool oled) {
-            evc2_dev = evc2_dev_ref;
-            OledEnabled = oled;
         }
 
         public bool SetFilePath(string path, bool csv) {
@@ -225,20 +217,7 @@ namespace PMDLogger {
                         RegistryKey key = hwinfo_reg_key.OpenSubKey(logging_item.HwinfoKey, true);
                         key.SetValue("Value", value, RegistryValueKind.String);
                     }
-                    if(OledEnabled) {
-                        if(oled_lines.Count < 4) {
-                            int value_len = value.Length;
-                            if(value_len > 3) {
-                                value_len = 3;
-                            }
-                            value = value.Substring(0, value_len).TrimEnd(new char[] { '.' }).PadLeft(3);
-                            int desc_len = logging_item.DescriptionShort.Length;
-                            if(desc_len > 4) {
-                                desc_len = 4;
-                            }
-                            oled_lines.Add(logging_item.DescriptionShort.Substring(0, desc_len).PadRight(5) + value + logging_item.Unit);
-                        }
-                    }
+                    
                 }
             }
 
