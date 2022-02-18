@@ -92,7 +92,7 @@ namespace PMDLogger {
 
                             // Init data logger
                             data_logger = new DataLogger(evc2_device_index);
-                            data_logger.SetFilePath(Assembly.GetExecutingAssembly().Location + "\\" + PMD_LOG_FILE, false);
+                            data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + PMD_LOG_FILE, false);
                             data_logger.AddLogItem(0, "CPU Power", "GPU", "W");
                             data_logger.AddLogItem(0, "GPU Power", "CPU", "W");
                             data_logger.Start();
@@ -144,7 +144,6 @@ namespace PMDLogger {
 
                         double gpu_power = pcie1_p + pcie2_p;
                         double cpu_power = eps1_p + eps2_p;
-                        data_logger.UpdateValue(0, gpu_power);
                         data_logger.UpdateValue(0, gpu_power);
                         data_logger.UpdateValue(1, cpu_power);
                         data_logger.WriteEntry();

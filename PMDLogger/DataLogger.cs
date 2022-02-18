@@ -67,12 +67,12 @@ namespace PMDLogger {
         }
 
         public bool SetFilePath(string path, bool csv) {
-            if(File.Exists(path)) {
+            //if(File.Exists(path)) {
                 FilePath = path;
                 CsvMode = csv;
                 return true;
-            }
-            return false;
+            //}
+            //return false;
         }
 
         public string GetFilePath() {
