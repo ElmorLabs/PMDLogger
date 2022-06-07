@@ -22,7 +22,7 @@ namespace PMDLogger {
     // https://stackoverflow.com/questions/995195/how-can-i-make-a-net-windows-forms-application-that-only-runs-in-the-system-tra
     public class TrayLogger : ApplicationContext {
 
-        private const string PMD_LOG_FILE = "pmd.txt";
+        private const string PMD_LOG_FILE = "pmd.csv";
 
         private const byte PMD_BUS = 1;
 
@@ -92,9 +92,13 @@ namespace PMDLogger {
 
                             // Init data logger
                             data_logger = new DataLogger(evc2_device_index);
-                            data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + PMD_LOG_FILE, false);
-                            data_logger.AddLogItem(0, "CPU Power", "GPU", "W");
-                            data_logger.AddLogItem(0, "GPU Power", "CPU", "W");
+                            data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + PMD_LOG_FILE, true);
+                            data_logger.AddLogItem(0, "GPU Power", "GPU", "W");
+                            data_logger.AddLogItem(0, "CPU Power", "CPU", "W");
+                            data_logger.AddLogItem(0, "PCIE1 Power", "PCIE1", "W");
+                            data_logger.AddLogItem(0, "PCIE2 Power", "PCIE2", "W");
+                            data_logger.AddLogItem(0, "EPS1 Power", "EPS1", "W");
+                            data_logger.AddLogItem(0, "EPS2 Power", "EPS2", "W");
                             data_logger.Start();
 
                             // Start logging thread
@@ -146,6 +150,10 @@ namespace PMDLogger {
                         double cpu_power = eps1_p + eps2_p;
                         data_logger.UpdateValue(0, gpu_power);
                         data_logger.UpdateValue(1, cpu_power);
+                        data_logger.UpdateValue(2, pcie1_p);
+                        data_logger.UpdateValue(3, pcie2_p);
+                        data_logger.UpdateValue(4, eps1_p);
+                        data_logger.UpdateValue(5, eps2_p);
                         data_logger.WriteEntry();
 
                         pmd_status_menu_item.Text = $"GPU {gpu_power.ToString("F0")}W CPU {cpu_power.ToString("F0")}W";
