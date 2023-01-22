@@ -20,8 +20,7 @@ namespace PMDLogger {
         public double Value;
         public string HwinfoKey;
 
-        public LoggingItem(int parent_id, int id, string desc, string desc_short, string unit) {
-            ParentId = parent_id;
+        public LoggingItem(int id, string desc, string desc_short, string unit) {
             Id = id;
             Description = desc;
             DescriptionShort = desc_short;
@@ -44,18 +43,14 @@ namespace PMDLogger {
 
         public bool IsLogging;
         
-        int ParentIdCounter;
         int IdCounter;
         string FilePath;
         bool CsvMode;
         bool Hwinfo;
-        int evc2_device_id;
-
 
         private CultureInfo culture_info;
 
-        public DataLogger(int device_id) {
-            evc2_device_id = device_id;
+        public DataLogger() {
             IsLogging = false;
             IdCounter = 0;
             LoggingItemList = new List<LoggingItem>();
@@ -79,12 +74,8 @@ namespace PMDLogger {
             return FilePath;
         }
 
-        public int GetNewParentId() {
-            return ParentIdCounter++;
-        }
-
-        public int AddLogItem(int parent_id, string desc, string desc_short, string unit) {
-            LoggingItemList.Add(new LoggingItem(parent_id, IdCounter, desc, desc_short, unit));
+        public int AddLogItem(string desc, string desc_short, string unit) {
+            LoggingItemList.Add(new LoggingItem(IdCounter, desc, desc_short, unit));
             return IdCounter++;
         }
 
