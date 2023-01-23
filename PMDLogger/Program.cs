@@ -28,6 +28,8 @@ namespace PMDLogger {
         MenuItem pmd_status_menu_item = new MenuItem("PMD");
 
         List<PMD_Device> pmd_devices;
+        List<PMD_USB_Device> pmd_usb_devices;
+
         List<DataLogger> DataLoggerList = new List<DataLogger>();
 
         public TrayLogger() {
@@ -48,7 +50,7 @@ namespace PMDLogger {
             pmd_devices = PMD_Device.GetAllDevices(0);
 
             // Find PMD-USBs
-            List<PMD_USB_Device> pmd_usb_devices = PMD_USB_Device.GetAllDevices(0);
+            pmd_usb_devices = PMD_USB_Device.GetAllDevices(3);
 
             string time_str = DateTime.Now.ToString("_yyyyMMdd_HHmmss");
 
@@ -145,12 +147,17 @@ namespace PMDLogger {
 
         void Exit(object sender, EventArgs e) {
 
-            foreach(PMD_Device device in pmd_devices)
+            foreach (PMD_Device device in pmd_devices)
             {
                 device.StopMonitoring();
             }
 
-            foreach(DataLogger data_logger in DataLoggerList)
+            foreach (PMD_USB_Device device in pmd_usb_devices)
+            {
+                device.StopMonitoring();
+            }
+
+            foreach (DataLogger data_logger in DataLoggerList)
             {
                 data_logger.Stop();
             }

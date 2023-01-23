@@ -188,6 +188,50 @@ namespace PMDLogger
             try
             {
                 serial_port.Open();
+
+                if (device_speed == 3)
+                {
+                    // Change baud rate
+
+                    int baud = 460800;
+                    int parity = 2; // None
+                    int datawidth = 0; // 8 bit
+                    int stopbits = 0; // 1 bit
+
+                    /*byte[] tx_buffer = new byte[] {
+                        (byte)UART_CMD.UART_CMD_WRITE_CONFIG_UART,
+                        (byte)(baud>>24), (byte)(baud>>16), (byte)(baud>>8), (byte)baud,
+                        (byte)(parity>>24), (byte)(parity>>16), (byte)(parity>>8), (byte)parity,
+                        (byte)(datawidth>>24), (byte)(datawidth>>16), (byte)(datawidth>>8), (byte)datawidth,
+                        (byte)(stopbits>>24), (byte)(stopbits>>16), (byte)(stopbits>>8), (byte)stopbits,
+                    };*/
+
+                    byte[] tx_buffer = new byte[] {
+                        (byte)UART_CMD.UART_CMD_WRITE_CONFIG_UART,
+                        (byte)(baud>>0), (byte)(baud>>8), (byte)(baud>>16), (byte)(baud>>24),
+                        (byte)(parity>>0), (byte)(parity>>8), (byte)(parity>>16), (byte)(parity>>24),
+                        (byte)(datawidth>>0), (byte)(datawidth>>8), (byte)(datawidth>>16), (byte)(datawidth>>24),
+                        (byte)(stopbits>>0), (byte)(stopbits>>8), (byte)(stopbits>>16), (byte)(stopbits>>24),
+                    };
+
+                    serial_port.Write(tx_buffer, 0, tx_buffer.Length);
+                    Thread.Sleep(100);
+                    serial_port.Close();
+                    serial_port.BaudRate = baud;
+                    
+                    serial_port.Open();
+                }
+;
+                if (device_speed >= 2)
+                {
+                    // Enable cont rx
+                    lock(rx_buffer)
+                    {
+                        rx_buffer.Clear();
+                    }
+                    byte[] tx_buffer = new byte[] { (byte)UART_CMD.UART_CMD_WRITE_CONFIG_CONT_TX, 1, 0, 0xFF };
+                    serial_port.Write(tx_buffer, 0, tx_buffer.Length);
+                }
             }
             catch
             {
@@ -213,9 +257,48 @@ namespace PMDLogger
 
             try
             {
+                if (device_speed >= 2)
+                {
+                    // Disable cont rx
+                    byte[] tx_buffer = new byte[] { (byte)UART_CMD.UART_CMD_WRITE_CONFIG_CONT_TX, 0, 0, 0 };
+                    serial_port.Write(tx_buffer, 0, tx_buffer.Length);
+                }
+
+                if (device_speed == 3)
+                {
+                    // Restore baud rate
+
+                    int baud = 115200;
+                    int parity = 2; // None
+                    int datawidth = 0; // 8 bit
+                    int stopbits = 0; // 1 bit
+
+                    /*byte[] tx_buffer = new byte[] {
+                        (byte)UART_CMD.UART_CMD_WRITE_CONFIG_UART,
+                        (byte)(baud>>24), (byte)(baud>>16), (byte)(baud>>8), (byte)baud,
+                        (byte)(parity>>24), (byte)(parity>>16), (byte)(parity>>8), (byte)parity,
+                        (byte)(datawidth>>24), (byte)(datawidth>>16), (byte)(datawidth>>8), (byte)datawidth,
+                        (byte)(stopbits>>24), (byte)(stopbits>>16), (byte)(stopbits>>8), (byte)stopbits,
+                    };*/
+
+                    byte[] tx_buffer = new byte[] {
+                        (byte)UART_CMD.UART_CMD_WRITE_CONFIG_UART,
+                        (byte)(baud>>0), (byte)(baud>>8), (byte)(baud>>16), (byte)(baud>>24),
+                        (byte)(parity>>0), (byte)(parity>>8), (byte)(parity>>16), (byte)(parity>>24),
+                        (byte)(datawidth>>0), (byte)(datawidth>>8), (byte)(datawidth>>16), (byte)(datawidth>>24),
+                        (byte)(stopbits>>0), (byte)(stopbits>>8), (byte)(stopbits>>16), (byte)(stopbits>>24),
+                    };
+
+                    serial_port.Write(tx_buffer, 0, tx_buffer.Length);
+                    Thread.Sleep(100);
+                    serial_port.BaudRate = baud;
+                }
+
                 serial_port.Close();
             }
-            catch { }
+            catch {
+                return false;
+            }
 
             return true;
         }
@@ -230,52 +313,159 @@ namespace PMDLogger
             {
                 //rx_buffer = null;
 
-                // Get sensor values
-                bool result = PMD_USB_SendCmd((byte)UART_CMD.UART_CMD_READ_SENSOR_VALUES, 4 * 2 * 2);
-                
-                if (result)
+                if (device_speed == 0)
                 {
-                    List<SensorData> sensor_data_list = new List<SensorData>();
 
-                    double gpu_power = 0;
-                    double cpu_power = 0;
-                    double total_power = 0;
+                    // Get sensor values
+                    bool result = PMD_USB_SendCmd((byte)UART_CMD.UART_CMD_READ_SENSOR_VALUES, 4 * 2 * 2);
 
-                    sensor_data_list.Add(new SensorData(0, total_power));
-                    sensor_data_list.Add(new SensorData(1, gpu_power));
-                    sensor_data_list.Add(new SensorData(2, cpu_power));
+                    if (result)
+                    {
+                        List<SensorData> sensor_data_list = new List<SensorData>();
+
+                        double gpu_power = 0;
+                        double cpu_power = 0;
+                        double total_power = 0;
+
+                        sensor_data_list.Add(new SensorData(0, total_power));
+                        sensor_data_list.Add(new SensorData(1, gpu_power));
+                        sensor_data_list.Add(new SensorData(2, cpu_power));
+
+                        lock (rx_buffer)
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                double voltage = ((Int16)(rx_buffer[i * 4 + 1] << 8 | rx_buffer[i * 4 + 0])) / 100.0;
+                                double current = ((Int16)(rx_buffer[i * 4 + 2 + 1] << 8 | rx_buffer[i * 4 + 2 + 0])) / 10.0;
+                                double power = voltage * current;
+
+                                sensor_data_list.Add(new SensorData(3 + i * 3, voltage));
+                                sensor_data_list.Add(new SensorData(4 + i * 3, current));
+                                sensor_data_list.Add(new SensorData(5 + i * 3, power));
+
+                                if (i == 0 || i == 1)
+                                {
+                                    gpu_power += power;
+                                }
+                                else
+                                {
+                                    cpu_power += power;
+                                }
+                            }
+                        }
+
+                        total_power = gpu_power + cpu_power;
+
+                        sensor_data_list[0].Value = total_power;
+                        sensor_data_list[1].Value = gpu_power;
+                        sensor_data_list[2].Value = cpu_power;
+
+                        DataUpdated?.Invoke(sensor_data_list);
+
+                    }
+                } else if(device_speed == 1)
+                {
+                    // Get sensor values
+                    bool result = PMD_USB_SendCmd((byte)UART_CMD.UART_CMD_READ_ADC, 4 * 2 * 2);
+
+                    if (result)
+                    {
+                        List<SensorData> sensor_data_list = new List<SensorData>();
+
+                        // Convert data
+                        lock (rx_buffer)
+                        {
+                            double pcie1_v = ((Int16)(rx_buffer[1] << 8 | rx_buffer[0]) >> 4) * 0.007568f;
+                            double pcie1_i = ((Int16)(rx_buffer[3] << 8 | rx_buffer[2]) >> 4) * 0.0488;
+                            double pcie1_p = pcie1_v * pcie1_i;
+                            double pcie2_v = ((Int16)(rx_buffer[5] << 8 | rx_buffer[4]) >> 4) * 0.007568f;
+                            double pcie2_i = ((Int16)(rx_buffer[7] << 8 | rx_buffer[6]) >> 4) * 0.0488;
+                            double pcie2_p = pcie2_v * pcie2_i;
+                            double eps1_v = ((Int16)(rx_buffer[9] << 8 | rx_buffer[8]) >> 4) * 0.007568f;
+                            double eps1_i = ((Int16)(rx_buffer[11] << 8 | rx_buffer[10]) >> 4) * 0.0488;
+                            double eps1_p = eps1_v * eps1_i;
+                            double eps2_v = ((Int16)(rx_buffer[13] << 8 | rx_buffer[12]) >> 4) * 0.007568f;
+                            double eps2_i = ((Int16)(rx_buffer[15] << 8 | rx_buffer[14]) >> 4) * 0.0488;
+                            double eps2_p = eps2_v * eps2_i;
+
+                            double gpu_power = pcie1_p + pcie2_p;
+                            double cpu_power = eps1_p + eps2_p;
+                            double total_power = gpu_power + cpu_power;
+
+                            // Build list
+                            int i = 0;
+                            sensor_data_list.Add(new SensorData(i++, total_power));
+                            sensor_data_list.Add(new SensorData(i++, gpu_power));
+                            sensor_data_list.Add(new SensorData(i++, cpu_power));
+                            sensor_data_list.Add(new SensorData(i++, pcie1_v));
+                            sensor_data_list.Add(new SensorData(i++, pcie1_i));
+                            sensor_data_list.Add(new SensorData(i++, pcie1_p));
+                            sensor_data_list.Add(new SensorData(i++, pcie2_v));
+                            sensor_data_list.Add(new SensorData(i++, pcie2_i));
+                            sensor_data_list.Add(new SensorData(i++, pcie2_p));
+                            sensor_data_list.Add(new SensorData(i++, eps1_v));
+                            sensor_data_list.Add(new SensorData(i++, eps1_i));
+                            sensor_data_list.Add(new SensorData(i++, eps1_p));
+                            sensor_data_list.Add(new SensorData(i++, eps2_v));
+                            sensor_data_list.Add(new SensorData(i++, eps2_i));
+                            sensor_data_list.Add(new SensorData(i++, eps2_p));
+                        }
+
+                        // Trigger event
+                        DataUpdated?.Invoke(sensor_data_list);
+
+                    }
+                } else if (device_speed >= 2)
+                {
+                    int num_sets = rx_buffer.Count / (4 * 2 * 2);
+                    for (int j = 0; j < num_sets; j++)
+                    {
+                        List<SensorData> sensor_data_list = new List<SensorData>();
+
+                        // Convert data
+                        double pcie1_v = ((Int16)(rx_buffer[1 + j * 16] << 8 | rx_buffer[0 + j * 16]) >> 4) * 0.007568f;
+                        double pcie1_i = ((Int16)(rx_buffer[3 + j * 16] << 8 | rx_buffer[2 + j * 16]) >> 4) * 0.0488;
+                        double pcie1_p = pcie1_v * pcie1_i;
+                        double pcie2_v = ((Int16)(rx_buffer[5 + j * 16] << 8 | rx_buffer[4 + j * 16]) >> 4) * 0.007568f;
+                        double pcie2_i = ((Int16)(rx_buffer[7 + j * 16] << 8 | rx_buffer[6 + j * 16]) >> 4) * 0.0488;
+                        double pcie2_p = pcie2_v * pcie2_i;
+                        double eps1_v = ((Int16)(rx_buffer[9 + j * 16] << 8 | rx_buffer[8 + j * 16]) >> 4) * 0.007568f;
+                        double eps1_i = ((Int16)(rx_buffer[11 + j * 16] << 8 | rx_buffer[10 + j * 16]) >> 4) * 0.0488;
+                        double eps1_p = eps1_v * eps1_i;
+                        double eps2_v = ((Int16)(rx_buffer[13 + j * 16] << 8 | rx_buffer[12 + j * 16]) >> 4) * 0.007568f;
+                        double eps2_i = ((Int16)(rx_buffer[15 + j * 16] << 8 | rx_buffer[14 + j * 16]) >> 4) * 0.0488;
+                        double eps2_p = eps2_v * eps2_i;
+
+                        double gpu_power = pcie1_p + pcie2_p;
+                        double cpu_power = eps1_p + eps2_p;
+                        double total_power = gpu_power + cpu_power;
+
+                        // Build list
+                        int i = 0;
+                        sensor_data_list.Add(new SensorData(i++, total_power));
+                        sensor_data_list.Add(new SensorData(i++, gpu_power));
+                        sensor_data_list.Add(new SensorData(i++, cpu_power));
+                        sensor_data_list.Add(new SensorData(i++, pcie1_v));
+                        sensor_data_list.Add(new SensorData(i++, pcie1_i));
+                        sensor_data_list.Add(new SensorData(i++, pcie1_p));
+                        sensor_data_list.Add(new SensorData(i++, pcie2_v));
+                        sensor_data_list.Add(new SensorData(i++, pcie2_i));
+                        sensor_data_list.Add(new SensorData(i++, pcie2_p));
+                        sensor_data_list.Add(new SensorData(i++, eps1_v));
+                        sensor_data_list.Add(new SensorData(i++, eps1_i));
+                        sensor_data_list.Add(new SensorData(i++, eps1_p));
+                        sensor_data_list.Add(new SensorData(i++, eps2_v));
+                        sensor_data_list.Add(new SensorData(i++, eps2_i));
+                        sensor_data_list.Add(new SensorData(i++, eps2_p));
+
+                        // Trigger event
+                        DataUpdated?.Invoke(sensor_data_list);
+                    }
 
                     lock (rx_buffer)
                     {
-                        for (int i = 0; i < 4; i++)
-                        {
-                            double voltage = ((Int16)(rx_buffer[i * 4 + 1] << 8 | rx_buffer[i * 4 + 0])) / 100.0;
-                            double current = ((Int16)(rx_buffer[i * 4 + 2 + 1] << 8 | rx_buffer[i * 4 + 2 + 0])) / 10.0;
-                            double power = voltage * current;
-
-                            sensor_data_list.Add(new SensorData(3 + i * 3, voltage));
-                            sensor_data_list.Add(new SensorData(4 + i * 3, current));
-                            sensor_data_list.Add(new SensorData(5 + i * 3, power));
-
-                            if (i == 0 || i == 1)
-                            {
-                                gpu_power += power;
-                            }
-                            else
-                            {
-                                cpu_power += power;
-                            }
-                        }
+                        rx_buffer.RemoveRange(0, num_sets * 16);
                     }
-
-                    total_power = gpu_power + cpu_power;
-
-                    sensor_data_list[0].Value = total_power;
-                    sensor_data_list[1].Value = gpu_power;
-                    sensor_data_list[2].Value = cpu_power;
-
-                    DataUpdated?.Invoke(sensor_data_list);
-                    
                 }
 
             }

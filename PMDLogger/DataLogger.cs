@@ -188,7 +188,7 @@ namespace PMDLogger {
             List<string> oled_lines = new List<string>();
 
             if(!string.IsNullOrEmpty(FilePath) && CsvMode) {
-                text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + ",";
+                text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + ",";
             } else {
                 text = "";
             }
