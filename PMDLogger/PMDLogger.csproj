@@ -50,8 +50,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DataLogger.cs" />
-    <Compile Include="IPMDDevice.cs" />
-    <Compile Include="PMDDevice_EVC2.cs" />
+    <Compile Include="IPMD_Device.cs" />
+    <Compile Include="PMD_Device.cs" />
+    <Compile Include="PMD_USB_Device.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Sensor.cs" />

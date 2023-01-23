@@ -8,7 +8,7 @@ namespace PMDLogger
 {
     public delegate void NewDataEventHandler(List<SensorData> sensor_data);
 
-    public interface IPMDDevice
+    public interface IPMD_Device
     {
 
         event NewDataEventHandler DataUpdated;

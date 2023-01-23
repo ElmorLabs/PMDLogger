@@ -27,7 +27,7 @@ namespace PMDLogger {
 
         MenuItem pmd_status_menu_item = new MenuItem("PMD");
 
-        List<PMDDevice_EVC2> pmd_devices;
+        List<PMD_Device> pmd_devices;
         List<DataLogger> DataLoggerList = new List<DataLogger>();
 
         public TrayLogger() {
@@ -45,65 +45,107 @@ namespace PMDLogger {
             pmd_status_menu_item.Enabled = false;
 
             // Find PMDs
-            pmd_devices = PMDDevice_EVC2.GetAllDevices(0);
+            pmd_devices = PMD_Device.GetAllDevices(0);
+
+            // Find PMD-USBs
+            List<PMD_USB_Device> pmd_usb_devices = PMD_USB_Device.GetAllDevices(0);
 
             string time_str = DateTime.Now.ToString("_yyyyMMdd_HHmmss");
 
-            // Check if any are found
-            if (pmd_devices.Count > 0) {
+            foreach (PMD_Device device in pmd_devices)
+            {
 
-                foreach (PMDDevice_EVC2 device in pmd_devices)
+                // Init data logger
+                DataLogger data_logger = new DataLogger();
+                data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + device.Name + time_str + ".csv", true);
+
+                foreach (Sensor sensor in device.Sensors)
                 {
-
-                    // Init data logger
-                    DataLogger data_logger = new DataLogger();
-                    data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + device.Name + time_str + ".csv", true);
-
-                    foreach (Sensor sensor in device.Sensors)
-                    {
-                        sensor.Id = data_logger.AddLogItem(sensor.DescriptionLong, sensor.DescriptionShort, sensor.Unit);
-                    }
-
-                    // Start logger
-                    data_logger.Start();
-                    DataLoggerList.Add(data_logger);
-
-                    // Register for event
-                    device.DataUpdated += (List<SensorData> sensor_data_list) => {
-                        foreach(SensorData sensor_data in sensor_data_list)
-                        {
-                            data_logger.UpdateValue(sensor_data.Id, sensor_data.Value);
-                        }
-                        data_logger.WriteEntry();
-                        
-                        // Print total power
-                        if(device.Sensors.Count > 1 && sensor_data_list.Count > 1)
-                        {
-                            pmd_status_menu_item.Text = $"{device.Sensors[0].DescriptionLong} {sensor_data_list[0].Value.ToString("F0")}{device.Sensors[0].Unit}";
-                        }
-
-                    };
-
-                    if (device.StartMonitoring())
-                    {
-                        // Update status
-                        pmd_status_menu_item.Text = $"Logging on {device.Name}...";
-                    }
-                    else
-                    {
-                        pmd_status_menu_item.Text = $"Error starting {device.Name}...";
-                    }
+                    sensor.Id = data_logger.AddLogItem(sensor.DescriptionLong, sensor.DescriptionShort, sensor.Unit);
                 }
-               
-            } else {
-                // No devices found
-                pmd_status_menu_item.Text = "No PMD devices found";
+
+                // Start logger
+                data_logger.Start();
+                DataLoggerList.Add(data_logger);
+
+                // Register for event
+                device.DataUpdated += (List<SensorData> sensor_data_list) => {
+                    foreach(SensorData sensor_data in sensor_data_list)
+                    {
+                        data_logger.UpdateValue(sensor_data.Id, sensor_data.Value);
+                    }
+                    data_logger.WriteEntry();
+                        
+                    // Print total power
+                    if(device.Sensors.Count > 1 && sensor_data_list.Count > 1)
+                    {
+                        pmd_status_menu_item.Text = $"{device.Sensors[0].DescriptionLong} {sensor_data_list[0].Value.ToString("F0")}{device.Sensors[0].Unit}";
+                    }
+
+                };
+
+                if (device.StartMonitoring())
+                {
+                    // Update status
+                    pmd_status_menu_item.Text = $"Logging on {device.Name}...";
+                }
+                else
+                {
+                    pmd_status_menu_item.Text = $"Error starting {device.Name}...";
+                }
+            }
+
+            foreach(PMD_USB_Device device in pmd_usb_devices)
+            {
+                // Init data logger
+                DataLogger data_logger = new DataLogger();
+                data_logger.SetFilePath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\" + device.Name + time_str + ".csv", true);
+
+                foreach (Sensor sensor in device.Sensors)
+                {
+                    sensor.Id = data_logger.AddLogItem(sensor.DescriptionLong, sensor.DescriptionShort, sensor.Unit);
+                }
+
+                // Start logger
+                data_logger.Start();
+                DataLoggerList.Add(data_logger);
+
+                // Register for event
+                device.DataUpdated += (List<SensorData> sensor_data_list) => {
+                    foreach (SensorData sensor_data in sensor_data_list)
+                    {
+                        data_logger.UpdateValue(sensor_data.Id, sensor_data.Value);
+                    }
+                    data_logger.WriteEntry();
+
+                    // Print total power
+                    if (device.Sensors.Count > 1 && sensor_data_list.Count > 1)
+                    {
+                        pmd_status_menu_item.Text = $"{device.Sensors[0].DescriptionLong} {sensor_data_list[0].Value.ToString("F0")}{device.Sensors[0].Unit}";
+                    }
+
+                };
+
+                if (device.StartMonitoring())
+                {
+                    // Update status
+                    pmd_status_menu_item.Text = $"Logging on {device.Name}...";
+                }
+                else
+                {
+                    pmd_status_menu_item.Text = $"Error starting {device.Name}...";
+                }
+            }
+
+            if(pmd_devices.Count == 0 && pmd_usb_devices.Count == 0)
+            {
+                pmd_status_menu_item.Text = "No devices found.";
             }
         }
 
         void Exit(object sender, EventArgs e) {
 
-            foreach(PMDDevice_EVC2 device in pmd_devices)
+            foreach(PMD_Device device in pmd_devices)
             {
                 device.StopMonitoring();
             }

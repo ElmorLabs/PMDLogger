@@ -1,5 +1,6 @@
 ﻿using EVC2Lib;
 using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,13 +9,13 @@ using System.Threading.Tasks;
 
 namespace PMDLogger
 {
-    public class PMDDevice_EVC2 : IPMDDevice
+    public class PMD_Device : IPMD_Device
     {
 
-        public static List<PMDDevice_EVC2> GetAllDevices(int speed)
+        public static List<PMD_Device> GetAllDevices(int speed)
         {
 
-            List<PMDDevice_EVC2> device_list = new List<PMDDevice_EVC2>();
+            List<PMD_Device> device_list = new List<PMD_Device>();
 
             // Find EVC2 devices
             int num_devices = EVC2Manager.FindDevices();
@@ -39,14 +40,14 @@ namespace PMDLogger
                         {
                             foreach (byte addr in addr_array)
                             {
-                                evc2_error = EVC2Manager.I2cRx(dev, bus, addr, new byte[] { 0x00 }, out rx_data, 2, out i2c_error);
+                                evc2_error = EVC2Manager.I2cRx(dev, bus, addr, new byte[] { PMD_REG_DEVID }, out rx_data, 2, out i2c_error);
                                 if (evc2_error == EVC2_ERROR.NO_ERROR)
                                 {
                                     // Check if PMD device
-                                    if (rx_data[0] == 0xEE && rx_data[1] == 0x0A)
+                                    if (rx_data[0] == PMD_DEVID_VID && rx_data[1] == PMD_DEVID_PID)
                                     {
                                         // Add to list
-                                        device_list.Add(new PMDDevice_EVC2(dev, bus, addr, speed));
+                                        device_list.Add(new PMD_Device(dev, bus, addr, speed));
                                     }
                                 }
                             }
@@ -60,6 +61,8 @@ namespace PMDLogger
         }
 
         private const byte PMD_REG_DEVID = 0x00;
+        private const byte PMD_DEVID_VID = 0xEE;
+        private const byte PMD_DEVID_PID = 0x0A;
         private const byte PMD_REG_MON_START = 0x03;
         private const int PMD_MON_LENGTH = 2 * 2 * 4; // 2 bytes * 2 values * 4 ch
 
@@ -76,10 +79,10 @@ namespace PMDLogger
         private int evc2_addr;
         private int evc2_speed;
 
-        public PMDDevice_EVC2(int device, int bus, int addr, int speed)
+        public PMD_Device(int device, int bus, int addr, int speed)
         {
             Id = DeviceCounter++;
-            Name = $"PMD{Id}";
+            Name = $"PMD-{Id}";
             int i = 0;
             Sensors = new List<Sensor>() {
                 new Sensor(i++, "Total Power", "POWER", "W"), new Sensor(i++, "GPU Power", "GPU", "W"), new Sensor(i++, "CPU Power", "CPU", "W"),
