@@ -2,6 +2,7 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
@@ -60,29 +61,6 @@ namespace PMDLogger
 
         }
 
-        public static byte[] KTH_SendCmd(SerialPort serial_port, byte[] tx_buffer, int rx_len, bool delay)
-        {
-
-            if (serial_port == null)
-            {
-                return null;
-            }
-
-            byte[] rx_buffer = new byte[rx_len];
-            try
-            {
-                serial_port.Write(tx_buffer, 0, tx_buffer.Length);
-                if (delay) Thread.Sleep(1);
-                serial_port.Read(rx_buffer, 0, rx_buffer.Length);
-            }
-            catch (Exception ex)
-            {
-                return null;
-            }
-
-            return rx_buffer;
-        }
-
         // UART interface commands
         private enum UART_CMD : byte
         {
@@ -115,6 +93,29 @@ namespace PMDLogger
         private SerialPort serial_port;
         private int device_speed;
 
+        List<byte> rx_buffer = new List<byte>();
+
+        private bool PMD_USB_SendCmd(byte cmd, int rx_len)
+        {
+
+            if (serial_port == null)
+            {
+                return false;
+            }
+
+            lock (rx_buffer) rx_buffer.Clear();
+            serial_port.Write(new byte[] { cmd }, 0, 1);
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            while (rx_buffer.Count < rx_len && sw.ElapsedMilliseconds < 100)
+            {
+                
+            }
+
+            return rx_buffer.Count == rx_len;
+        }
+
         public PMD_USB_Device(string port, int speed)
         {
             device_speed = speed;
@@ -141,12 +142,17 @@ namespace PMDLogger
             serial_port.ReadTimeout = 100;
             serial_port.WriteTimeout = 100;
 
+            serial_port.RtsEnable = true;
+            serial_port.DtrEnable = true;
+
+            serial_port.DataReceived += Serial_port_DataReceived;
+
             // Check ID
             serial_port.Open();
 
-            byte[] rx_buffer = KTH_SendCmd(serial_port, new byte[] { (byte)UART_CMD.UART_CMD_READ_ID }, 3, true);
+            bool result = PMD_USB_SendCmd((byte)UART_CMD.UART_CMD_READ_ID, 3);
 
-            if (rx_buffer == null || rx_buffer[0] != PMD_USB_VID || rx_buffer[1] != PMD_USB_PID)
+            if (!result || rx_buffer[0] != PMD_USB_VID || rx_buffer[1] != PMD_USB_PID)
             {
                 try
                 {
@@ -162,6 +168,16 @@ namespace PMDLogger
 
             serial_port.Close();
 
+        }
+
+        private void Serial_port_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            int bytes = serial_port.BytesToRead;
+            byte[] data_buffer = new byte[bytes];
+            serial_port.Read(data_buffer, 0, bytes);
+            lock(rx_buffer) {
+                rx_buffer.AddRange(data_buffer);
+            }
         }
 
         volatile bool run_task = false;
@@ -208,15 +224,16 @@ namespace PMDLogger
         private void update_task()
         {
 
-            byte[] rx_buffer;
+            //byte[] rx_buffer;
 
             while (run_task)
             {
-                rx_buffer = null;
-                // Get sensor values
-                rx_buffer = KTH_SendCmd(serial_port, new byte[] { (byte)UART_CMD.UART_CMD_READ_SENSOR_VALUES }, 4 * 2 * 2, true);
+                //rx_buffer = null;
 
-                if (rx_buffer != null)
+                // Get sensor values
+                bool result = PMD_USB_SendCmd((byte)UART_CMD.UART_CMD_READ_SENSOR_VALUES, 4 * 2 * 2);
+                
+                if (result)
                 {
                     List<SensorData> sensor_data_list = new List<SensorData>();
 
@@ -228,22 +245,26 @@ namespace PMDLogger
                     sensor_data_list.Add(new SensorData(1, gpu_power));
                     sensor_data_list.Add(new SensorData(2, cpu_power));
 
-                    for (int i = 0; i < 4; i++)
+                    lock (rx_buffer)
                     {
-                        double voltage = ((Int16)(rx_buffer[i * 4 + 1] << 8 | rx_buffer[i * 4 + 0])) / 100.0;
-                        double current = ((Int16)(rx_buffer[i * 4 + 2 + 1] << 8 | rx_buffer[i * 4 + 2 + 0])) / 10.0;
-                        double power = voltage * current;
-
-                        sensor_data_list.Add(new SensorData(3 + i * 3, voltage));
-                        sensor_data_list.Add(new SensorData(4 + i * 3, current));
-                        sensor_data_list.Add(new SensorData(5 + i * 3, power));
-
-                        if(i == 0 || i == 1)
+                        for (int i = 0; i < 4; i++)
                         {
-                            gpu_power += power;
-                        } else
-                        {
-                            cpu_power += power;
+                            double voltage = ((Int16)(rx_buffer[i * 4 + 1] << 8 | rx_buffer[i * 4 + 0])) / 100.0;
+                            double current = ((Int16)(rx_buffer[i * 4 + 2 + 1] << 8 | rx_buffer[i * 4 + 2 + 0])) / 10.0;
+                            double power = voltage * current;
+
+                            sensor_data_list.Add(new SensorData(3 + i * 3, voltage));
+                            sensor_data_list.Add(new SensorData(4 + i * 3, current));
+                            sensor_data_list.Add(new SensorData(5 + i * 3, power));
+
+                            if (i == 0 || i == 1)
+                            {
+                                gpu_power += power;
+                            }
+                            else
+                            {
+                                cpu_power += power;
+                            }
                         }
                     }
 
